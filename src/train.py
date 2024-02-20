@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
-from tqdm import trange
+# from tqdm import trange
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -58,6 +58,7 @@ class ProjectAgent:
             while(True):
                 # print('len(rewards):',len(rewards))
                 a, log_prob, entropy = self.sample_action(x)
+                print('action:',a)
                 y,r,d,trunc,info = env.step(a)
                 values.append(self.value(torch.as_tensor(x)).squeeze(dim=0))
                 log_probs.append(log_prob)
@@ -65,6 +66,7 @@ class ProjectAgent:
                 rewards.append(r)
                 episode_cum_reward += r
                 x=y
+                print('episode_cum_reward:',episode_cum_reward)
                 if d or trunc:#might need to change this condition to handle trunc=True
                     # compute returns-to-go
                     new_returns = []
@@ -94,8 +96,8 @@ class ProjectAgent:
 
     def train(self, env, nb_rollouts):
         avg_sum_rewards = []
-        for ep in trange(nb_rollouts):
-            print('epoch:',ep)
+        for ep in range(nb_rollouts):
+            print('epoch:',ep,'\n')
             avg_sum_rewards.append(self.one_gradient_step(env))
         return avg_sum_rewards
 
@@ -182,7 +184,7 @@ if __name__=='__main__':
     pi = policyNetwork(env)
     V = valueNetwork(env)
     agent = ProjectAgent(config, pi,V)
-    returns = agent.train(env,10)
+    returns = agent.train(env,2)
     plt.plot(returns)
     plt.savefig('train_plot')
     agent.save()
