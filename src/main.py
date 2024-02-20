@@ -4,8 +4,9 @@ import numpy as np
 import torch
 
 from evaluate import evaluate_HIV, evaluate_HIV_population
-from train import ProjectAgent  # Replace DummyAgent with your agent implementation
-
+from train import ProjectAgent, policyNetwork, valueNetwork  # Replace DummyAgent with your agent implementation
+from gymnasium.wrappers import TimeLimit
+from env_hiv import HIVPatient
 
 def seed_everything(seed: int = 42):
     random.seed(seed)
@@ -21,7 +22,18 @@ def seed_everything(seed: int = 42):
 if __name__ == "__main__":
     seed_everything(seed=42)
     # Initialization of the agent. Replace DummyAgent with your custom agent implementation.
-    agent = ProjectAgent()
+    env = TimeLimit(
+    env=HIVPatient(domain_randomization=False), max_episode_steps=200
+)
+    config = {'gamma': .99,
+          'learning_rate': 0.01,
+          'nb_episodes': 10,
+          'entropy_coefficient': 1e-3
+         }
+    pi = policyNetwork(env)
+    V = valueNetwork(env)
+    agent = ProjectAgent(config, pi,V)
+    # agent = ProjectAgent()
     agent.load()
     # Keep the following lines to evaluate your agent unchanged.
     score_agent: float = evaluate_HIV(agent=agent, nb_episode=1)

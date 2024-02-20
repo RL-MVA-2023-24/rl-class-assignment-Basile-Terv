@@ -1,6 +1,15 @@
 import gymnasium as gym
 import numpy as np
 
+"""
+Reminder: Gymnasium has a number of fundamental spaces that are used as building boxes for more complex spaces.
+Box - Supports continuous (and discrete) vectors or matrices, used for vector observations, images, etc
+Discrete - Supports a single discrete number of values with an optional start for the values
+MultiBinary - Supports single or matrices of binary values, used for holding down a button or if an agent has an object
+MultiDiscrete - Supports multiple discrete values with multiple axes, used for controller actions
+Text - Supports strings, used for passing agent messages, mission details, etc
+"""
+
 
 class HIVPatient(gym.Env):
     """HIV patient simulator
@@ -229,10 +238,11 @@ class HIVPatient(gym.Env):
         state = self.state()
         action = self.action_set[a_index]
         state2 = self.transition(state, action, 5)
+        # 5 is the number of days between two consecutive states
         rew = self.reward(state, action, state2)
         if self.clipping:
             np.clip(state2, self.lower, self.upper, out=state2)
-
+        # update current state
         self.T1 = state2[0]
         self.T1star = state2[1]
         self.T2 = state2[2]
