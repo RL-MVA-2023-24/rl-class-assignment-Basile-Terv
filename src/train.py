@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 # from tqdm import trange
 import numpy as np
-import matplotlib.pyplot as plt
 
 device = torch.device("cpu")
 
@@ -176,6 +175,7 @@ class policyNetwork(nn.Module):
 
 # https://realpython.com/if-name-main-python/
 if __name__=='__main__':
+    import matplotlib.pyplot as plt
     config = {'gamma': .99,
           'learning_rate': 0.01,
           'nb_episodes': 10,
