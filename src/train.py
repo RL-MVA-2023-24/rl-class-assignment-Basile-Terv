@@ -7,6 +7,14 @@ from torch.distributions import Categorical
 # from tqdm import trange
 import numpy as np
 
+# ------donné par Adil-------
+from functools import partial
+# f(x,y) fonction prédéf. partial renvoie nouvelle fonction avec y fixé
+# on peut le faire pour une classe, pour overwrite un init. Mieux que 
+# MyClass_new = partial(MyClass, some_arg=1)
+# ---------------------
+
+
 device = torch.device("cpu")
 
 env = TimeLimit(
@@ -21,7 +29,7 @@ env = TimeLimit(
 # You have to implement your own agent.
 # Don't modify the methods names and signatures, but you can add methods.
 # ENJOY!
-class ProjectAgent:
+class _ProjectAgent:
     # Below is an A2C agent 
     def __init__(self, config,policy_network, value_network):
         self.device = "cpu"
@@ -173,17 +181,25 @@ class policyNetwork(nn.Module):
         action_distribution = Categorical(probabilities)
         return action_distribution.log_prob(a)
 
+# on définit une classe wrapper de la classe _ProjectAgent où on fixe
+# des arguments
+ProjectAgent = partial(_ProjectAgent,config={'gamma': .99,
+          'learning_rate': 0.01,
+          'nb_episodes': 10,
+          'entropy_coefficient': 1e-3
+         } ,policy_network=policyNetwork(env), value_network=valueNetwork(env))
+
 # https://realpython.com/if-name-main-python/
 if __name__=='__main__':
     import matplotlib.pyplot as plt
-    config = {'gamma': .99,
+    """config = {'gamma': .99,
           'learning_rate': 0.01,
           'nb_episodes': 10,
           'entropy_coefficient': 1e-3
          }
     pi = policyNetwork(env)
-    V = valueNetwork(env)
-    agent = ProjectAgent(config, pi,V)
+    V = valueNetwork(env)"""
+    agent = ProjectAgent()#config, pi,V
     returns = agent.train(env,2)
     plt.plot(returns)
     plt.savefig('train_plot')

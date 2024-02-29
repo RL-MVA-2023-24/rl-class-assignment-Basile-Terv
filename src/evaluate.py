@@ -32,7 +32,7 @@ def evaluate_agent(agent: Agent, env: gym.Env, nb_episode: int = 10) -> float:
         rewards.append(episode_reward)
     return mean(rewards)
 
-
+# set les args par défaut avec partial
 evaluate_HIV = partial(
     evaluate_agent, env=TimeLimit(HIVPatient(), max_episode_steps=200)
 )
