@@ -7,6 +7,9 @@ from torch.distributions import Categorical
 import random
 from copy import deepcopy
 import numpy as np
+import os
+import time
+from evaluate import evaluate_HIV
 
 # ------donné par Adil--------------------------------------
 from functools import partial
@@ -16,7 +19,7 @@ from functools import partial
 # -----------------------------------------------------------
 
 env = TimeLimit(
-    env=HIVPatient(domain_randomization=False), max_episode_steps=200
+    env=HIVPatient(domain_randomization=True), max_episode_steps=200
 )  # The time wrapper limits the number of steps in an episode at 200.
 # Now is the floor is yours to implement the agent and train it.
 
@@ -215,6 +218,7 @@ class ProjectAgent_DQN:
         self.update_target_freq = config['update_target_freq'] if 'update_target_freq' in config.keys() else 20
         self.update_target_tau = config['update_target_tau'] if 'update_target_tau' in config.keys() else 0.005
         self.monitoring_nb_trials = config['monitoring_nb_trials'] if 'monitoring_nb_trials' in config.keys() else 0
+        self.first_eval_epoch = config['first_eval_epoch'] if 'first_eval_epoch' in config.keys() else 100
 
     def MC_eval(self, env, nb_trials):   # NEW NEW NEW
         MC_total_reward = []
@@ -266,6 +270,7 @@ class ProjectAgent_DQN:
         state, _ = env.reset()
         epsilon = self.epsilon_max
         step = 0
+        best_val_metric = 0
         while episode < max_episode:
             # update epsilon
             if step > self.epsilon_delay:
@@ -297,6 +302,17 @@ class ProjectAgent_DQN:
             step += 1
             if done or trunc:
                 episode += 1
+                # ESSENTIAL: save best model
+                if episode > self.first_eval_epoch:
+                    validation_metric = evaluate_HIV(agent=self, nb_episode=1)
+                    if validation_metric > best_val_metric:
+                        print("better model found, saving it")
+                        best_val_metric = validation_metric
+                        self.best_model = deepcopy(self.model).to(device)
+                        # save best (current) model before end of training
+                        self.save()
+                else :
+                    validation_metric = 0
                 # Monitoring: takes a lot of time:
                 if self.monitoring_nb_trials>0:
                     MC_dr, MC_tr = self.MC_eval(env, self.monitoring_nb_trials)    # NEW NEW NEW
@@ -312,6 +328,7 @@ class ProjectAgent_DQN:
                           ", MC tot ", '{:6.2f}'.format(MC_tr),
                           ", MC disc ", '{:6.2f}'.format(MC_dr),
                           ", V0 ", '{:6.2f}'.format(V0),
+                          ", validation metric ", '{:.2e}'.format(validation_metric),
                           sep='')
                 else:
                     episode_return.append(episode_cum_reward)
@@ -319,11 +336,13 @@ class ProjectAgent_DQN:
                           ", epsilon ", '{:6.2f}'.format(epsilon), 
                           ", batch size ", '{:4d}'.format(len(self.memory)), 
                           ", ep return ", '{:4.1f}'.format(episode_cum_reward), 
+                          ", validation metric ", '{:.2e}'.format(validation_metric),
                           sep='')
-
                 
+
                 state, _ = env.reset()
                 episode_cum_reward = 0
+
             else:
                 state = next_state
         return episode_return, MC_avg_discounted_reward, MC_avg_total_reward, V_init_state
@@ -334,11 +353,11 @@ class ProjectAgent_DQN:
         else:
             return greedy_action(self.model, observation)
     
-    def save(self, path="DQN.pth"):
+    def save(self, path=f"{os.getcwd()}/src/DQN_best_model_randomized.pth"):
         torch.save(self.model.state_dict(), path)
 
     def load(self):
-        self.model.load_state_dict(torch.load("DQN.pth", map_location='cpu'))
+        self.model.load_state_dict(torch.load(f"{os.getcwd()}/src/DQN_best_model_randomized.pth", map_location='cpu'))
         # turn off potential batch norm, dropout, etc. for inference time
         self.model.eval()
 
@@ -370,7 +389,7 @@ ProjectAgent = partial(ProjectAgent_A2C,config={'gamma': .99,
 # ---------------------------------------------------------
 # Declare network
 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-dqn=DQN(env, hidden_size=256, depth=6)
+dqn=DQN(env, hidden_size=512, depth=7)
 
 # DQN config
 config = {'nb_actions': env.action_space.n,
@@ -382,12 +401,13 @@ config = {'nb_actions': env.action_space.n,
           'epsilon_decay_period': 20000,
           'epsilon_delay_decay': 100,
           'batch_size': 800,
-          'gradient_steps': 3,
+          'gradient_steps': 5,
           'update_target_strategy': 'replace', # or 'ema'
           'update_target_freq': 400,
           'update_target_tau': 0.005,
           'criterion': torch.nn.SmoothL1Loss(),
-          'monitoring_nb_trials': 0}
+          'monitoring_nb_trials': 0,
+          'first_eval_epoch': 50}
 
 """config = {'nb_actions': env.action_space.n,
                 'learning_rate': 0.001,
@@ -408,30 +428,38 @@ ProjectAgent = partial(ProjectAgent_DQN,config=config,\
                        model=dqn)
 
 # ------------------------------------------------------------------------
+# !!!!!!!!!CAREFUL!!!!!!!!!!!!: always run this script from root of the repo
+# !!!NOT!!!! from src
+
 # https://realpython.com/if-name-main-python/
 if __name__=='__main__':
     import matplotlib.pyplot as plt
     agent = ProjectAgent()#config, pi,V
+    start_time = time.time()
     # for A2C: returns = agent.train(env,6)
     # for DQN:
     ep_return, disc_rewards, tot_rewards, V0 = agent.train(env,200)
-    print("MC eval of total reward",tot_rewards)
-    print("MC eval of discounted reward",disc_rewards)
-    print("average $max_a Q(s_0)$",V0)
+    # print("MC eval of total reward",tot_rewards)
+    # print("MC eval of discounted reward",disc_rewards)
+    # print("average $max_a Q(s_0)$",V0)
+    end_time = time.time()  # Record end time
+    training_time = end_time - start_time  # Calculate training time
+    # Print training time
+    print("Time taken for training: {:.2f} seconds".format(training_time))
     # print('returns:',returns)
     # plt.plot(returns)
     # Plot and save the first set of plots
     plt.plot(ep_return, label="training episode return")
     plt.plot(tot_rewards, label="MC eval of total reward")
     plt.legend()
-    plt.savefig('train_plot.png')  # Save the first plot
+    plt.savefig('train_plot_best_model.png')  # Save the first plot
     plt.close()  # Close the current figure before creating the next one
 
     # Plot and save the second set of plots
     plt.plot(disc_rewards, label="MC eval of discounted reward")
     plt.plot(V0, label="average $max_a Q(s_0)$")
     plt.legend()
-    plt.savefig('monitoring_plot.png')  # Save the second plot
+    plt.savefig('monitoring_plot_best_model.png')  # Save the second plot
     plt.close()  # Close the current figure
-
-    agent.save()
+    # Save end of last epoch's model
+    # agent.save()
