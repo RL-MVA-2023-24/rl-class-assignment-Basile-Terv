@@ -196,8 +196,7 @@ from dqn_greedy_action import greedy_action
 from replay_buffer2 import ReplayBuffer
 
 class ProjectAgent_DQN:
-    # def __init__(self, config, model):
-    """def __init__(self, config):
+    def __init__(self, config, model):
         device = "cuda" if next(model.parameters()).is_cuda else "cpu"
         self.nb_actions = config['nb_actions']
         self.gamma = config['gamma'] if 'gamma' in config.keys() else 0.95
@@ -220,12 +219,6 @@ class ProjectAgent_DQN:
         self.update_target_tau = config['update_target_tau'] if 'update_target_tau' in config.keys() else 0.005
         self.monitoring_nb_trials = config['monitoring_nb_trials'] if 'monitoring_nb_trials' in config.keys() else 0
         self.first_eval_epoch = config['first_eval_epoch'] if 'first_eval_epoch' in config.keys() else 100
-    """
-    def __init__(self):
-        self.state_mean = np.array([360_000, 7_750, 287, 33, 36_808, 55], dtype=np.float32)
-        self.state_std = np.array([128_788, 14_435, 345, 25, 70_083, 32], dtype=np.float32)
-        self.reward_mean = 45_344
-        self.reward_std = 33_407
 
     def MC_eval(self, env, nb_trials):   # NEW NEW NEW
         MC_total_reward = []
@@ -354,68 +347,20 @@ class ProjectAgent_DQN:
                 state = next_state
         return episode_return, MC_avg_discounted_reward, MC_avg_total_reward, V_init_state
     
-    """def act(self, observation, use_random=False):
-        if use_random:
-            return env.action_space.sample()
-        else:
-            return greedy_action(self.model, observation)"""
-        
     def act(self, observation, use_random=False):
         if use_random:
             return env.action_space.sample()
         else:
-            with torch.no_grad():
-                observation = torch.Tensor(self.normalize_state(observation, self.state_mean, self.state_std)).unsqueeze(0).to(self.device)
-                Qs = [model(observation) for model in self.models]
-                Qs = [weight * q / q.mean() for q, weight in zip(Qs, self.weights)]
-                Q = torch.stack(Qs).mean(0)
-                return torch.argmax(Q).item()
-            
-    def normalize_state(self, state, means, std):
-        out = (state - means) / std
-        return out
+            return greedy_action(self.model, observation)
     
-    def save(self, path=f"{os.getcwd()}/src/model_last.pt"):
+    def save(self, path=f"{os.getcwd()}/src/DQN_best_model_randomized.pth"):
         torch.save(self.model.state_dict(), path)
 
-    """def load(self):
-        self.device = torch.device('cpu')
-        self.model.load_state_dict(torch.load(f"{os.getcwd()}/src/model_last.pt", map_location='cpu'))
-        # turn off potential batch norm, dropout, etc. for inference time
-        self.model.eval()"""
-    
     def load(self):
-        self.device = torch.device('cpu')
-        self.experiments = ['/model_last.pt',
-                            ]
-        self.weights = np.ones(len(self.experiments))
-        self.paths = [f"{os.getcwd()}/src/" + exp for exp in self.experiments]
-        self.models = [self.network(self.device) for exp in self.experiments]
-        for i, model in enumerate(self.models):
-            model.load_state_dict(torch.load(self.paths[i], map_location=self.device))
-            model.eval()
+        self.model.load_state_dict(torch.load(f"{os.getcwd()}/src/DQN_best_model_randomized.pth", map_location='cpu'))
+        # turn off potential batch norm, dropout, etc. for inference time
+        self.model.eval()
 
-    def network(self,device):
-        state_dim = env.observation_space.shape[0]
-        print("state_dim ",state_dim)
-        n_action = env.action_space.n
-        print("n_action ",n_action)
-        hidden_layers = 256
-        network = torch.nn.Sequential(torch.nn.Linear(state_dim, hidden_layers),
-                        torch.nn.ReLU(),
-                        torch.nn.Linear(hidden_layers, hidden_layers),
-                        torch.nn.ReLU(), 
-                        torch.nn.Linear(hidden_layers, hidden_layers),
-                        torch.nn.ReLU(), 
-                        torch.nn.Linear(hidden_layers, hidden_layers),
-                        torch.nn.ReLU(), 
-                        torch.nn.Linear(hidden_layers, hidden_layers),
-                        torch.nn.ReLU(),
-                        torch.nn.Linear(hidden_layers, n_action)).to(device)
-        return network
-        
-
-"""
 class DQN(nn.Module):
     def __init__(self, env, hidden_size=256, depth=6):
         super().__init__()
@@ -430,8 +375,6 @@ class DQN(nn.Module):
         for hidden_layer in self.hidden_layers:
             x = F.relu(hidden_layer(x))
         return self.output_layer(x)
-"""
-
 
 # --------------------------------------------------------------------------------
 # on définit une classe wrapper de la classe _ProjectAgent où on fixe
@@ -446,9 +389,7 @@ ProjectAgent = partial(ProjectAgent_A2C,config={'gamma': .99,
 # ---------------------------------------------------------
 # Declare network
 device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-# dqn=DQN(env, hidden_size=256, depth=4)
-# dqn = DQN(device)
+dqn=DQN(env, hidden_size=512, depth=7)
 
 # DQN config
 config = {'nb_actions': env.action_space.n,
@@ -483,8 +424,8 @@ config = {'nb_actions': env.action_space.n,
                 'update_target_tau': 0.005,
                 'criterion': torch.nn.SmoothL1Loss()}"""
 
-# ProjectAgent = partial(ProjectAgent_DQN,config=config,model=dqn)
-ProjectAgent = partial(ProjectAgent_DQN)
+ProjectAgent = partial(ProjectAgent_DQN,config=config,\
+                       model=dqn)
 
 # ------------------------------------------------------------------------
 # !!!!!!!!!CAREFUL!!!!!!!!!!!!: always run this script from root of the repo
